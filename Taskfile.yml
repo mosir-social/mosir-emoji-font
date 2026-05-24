@@ -1,0 +1,131 @@
+version: '3'
+
+vars:
+  SVG_DIR: vendor/twemoji/assets/svg
+  RENAME_DIR: build/renamed_svgs
+  VENV_BIN: .venv/bin
+  FONT_NAME: twemoji-mosir
+  FONT_V1: "{{.FONT_NAME}}.colr_1"
+  FONT_V0: "{{.FONT_NAME}}.colr_0"
+  FONT_DIR: fonts
+  RELEASE_DIR: release
+  PACKAGE_BASENAME: "{{.FONT_NAME}}-fonts"
+
+tasks:
+  default:
+    desc: Build both COLRv1 and COLRv0 fonts
+    cmds:
+      - task: move-fonts
+
+  install:
+    desc: Install nanoemoji and fonttools into a venv
+    cmds:
+      - python3 -m venv .venv
+      - "{{.VENV_BIN}}/pip install --upgrade pip"
+      - "{{.VENV_BIN}}/pip install nanoemoji fonttools brotli"
+      - |
+        if ! command -v ninja >/dev/null 2>&1; then
+          echo "WARNING: 'ninja' not found. Install via 'brew install ninja' or 'apt install ninja-build'"
+        fi
+
+  init:
+    desc: Fast initialize Twemoji submodule (shallow)
+    cmds:
+      - git submodule update --init --recursive --depth 1
+
+  rename:
+    desc: Prepare SVGs (hyphens to underscores + conservative fallback duplication)
+    preconditions:
+      - sh: test -d {{.SVG_DIR}}
+        msg: "SVG directory not found. Run 'task init' first."
+    cmds:
+      - rm -rf {{.RENAME_DIR}}
+      - mkdir -p {{.RENAME_DIR}}
+      - cp {{.SVG_DIR}}/*.svg {{.RENAME_DIR}}/
+      # 1. Standardize filenames: replace hyphens with underscores (POSIX-safe)
+      - |
+        for file in {{.RENAME_DIR}}/*.svg; do
+          [ -e "$file" ] || continue
+          new_file=$(printf '%s\n' "$file" | tr '-' '_')
+          [ "$new_file" = "$file" ] || mv "$file" "$new_file"
+        done
+      # 2. Conservative fallback: drop FE0F immediately before ZWJ
+      - |
+        for file in {{.RENAME_DIR}}/*_fe0f_200d_*.svg; do
+          [ -e "$file" ] || continue
+          new_file=$(printf '%s\n' "$file" | sed 's/_fe0f_200d_/_200d_/')
+          [ "$new_file" = "$file" ] || cp "$file" "$new_file"
+        done
+      # 3. Conservative fallback: drop trailing FE0F in ZWJ sequences
+      - |
+        for file in {{.RENAME_DIR}}/*_200d_*_fe0f.svg; do
+          [ -e "$file" ] || continue
+          cp "$file" "${file%_fe0f.svg}.svg"
+        done
+    sources:
+      - '{{.SVG_DIR}}/*.svg'
+    generates:
+      - '{{.RENAME_DIR}}/*.svg'
+
+  build-v1:
+    desc: Build COLRv1 (Gradients/Modern)
+    deps: [rename]
+    cmds:
+      - "{{.VENV_BIN}}/nanoemoji --family {{.FONT_NAME}} --color_format glyf_colr_1 --output_file {{.FONT_V1}}.ttf {{.RENAME_DIR}}/*.svg"
+      - "{{.VENV_BIN}}/nanoemoji --family {{.FONT_NAME}} --color_format cff2_colr_1 --output_file {{.FONT_V1}}.otf {{.RENAME_DIR}}/*.svg"
+    generates:
+      - "build/{{.FONT_V1}}.ttf"
+      - "build/{{.FONT_V1}}.otf"
+
+  build-v0:
+    desc: Build COLRv0 (Safari/Legacy)
+    deps: [build-v1]
+    cmds:
+      - "{{.VENV_BIN}}/nanoemoji --family {{.FONT_NAME}} --color_format glyf_colr_0 --output_file {{.FONT_V0}}.ttf {{.RENAME_DIR}}/*.svg"
+      - "{{.VENV_BIN}}/nanoemoji --family {{.FONT_NAME}} --color_format cff_colr_0 --output_file {{.FONT_V0}}.otf {{.RENAME_DIR}}/*.svg"
+    generates:
+      - "build/{{.FONT_V0}}.ttf"
+      - "build/{{.FONT_V0}}.otf"
+
+  compress:
+    desc: Compress TTF fonts to WOFF2
+    deps: [build-v0]
+    cmds:
+      - "{{.VENV_BIN}}/fonttools ttLib.woff2 compress build/{{.FONT_V1}}.ttf"
+      - "{{.VENV_BIN}}/fonttools ttLib.woff2 compress build/{{.FONT_V0}}.ttf"
+    sources:
+      - "build/{{.FONT_V1}}.ttf"
+      - "build/{{.FONT_V0}}.ttf"
+    generates:
+      - "./build/{{.FONT_V1}}.woff2"
+      - "./build/{{.FONT_V0}}.woff2"
+
+  move-fonts:
+    desc: Move built fonts into fonts/
+    deps: [compress]
+    cmds:
+      - mkdir -p {{.FONT_DIR}}
+      - mv -f build/{{.FONT_V1}}.ttf {{.FONT_DIR}}/
+      - mv -f build/{{.FONT_V1}}.otf {{.FONT_DIR}}/
+      - mv -f build/{{.FONT_V0}}.ttf {{.FONT_DIR}}/
+      - mv -f build/{{.FONT_V0}}.otf {{.FONT_DIR}}/
+      - mv -f build/{{.FONT_V1}}.woff2 {{.FONT_DIR}}/
+      - mv -f build/{{.FONT_V0}}.woff2 {{.FONT_DIR}}/
+
+  package:
+    desc: Package fonts/ into tar.gz and zip
+    deps: [move-fonts, gen-range]
+    cmds:
+      - python3 scripts/package_release.py {{.FONT_DIR}} {{.RELEASE_DIR}} {{.PACKAGE_BASENAME}}
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf build/
+
+  gen-range:
+    desc: Generate CSS unicode-range based on prepared SVGs
+    deps: [rename]
+    cmds:
+      - mkdir -p {{.FONT_DIR}}
+      - python3 scripts/gen_range.py {{.RENAME_DIR}} > {{.FONT_DIR}}/unicode_range.css

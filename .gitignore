@@ -1,0 +1,15 @@
+# Build artifacts
+build/
+release/
+
+# Python virtual environment
+.venv/
+
+# macOS
+.DS_Store
+
+# Local task cache
+.task/
+
+# Local editor/assistant files
+.aider*
