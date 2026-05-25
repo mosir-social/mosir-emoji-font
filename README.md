@@ -11,19 +11,13 @@ If you just want to use the fonts, download from Releases:
 
 👉 https://github.com/mosir-social/mosir-emoji-font/releases/latest
 
-From **Assets**, choose files based on your use case:
+### Which file should I choose?
 
-- **Web**: `.woff2`
-- **App/Desktop**: `.ttf` or `.otf`
+- **Web**: include both files — `twemoji-mosir.colr_1.woff2` (primary) and `twemoji-mosir.colr_0.woff2` (fallback).
+- **Regular use** (install in OS/app):
+  - If your platform supports newer format, use `twemoji-mosir.colr_1.otf` or `twemoji-mosir.colr_1.ttf`.
+  - If you are not sure, use `twemoji-mosir.colr_0.otf` or `twemoji-mosir.colr_0.ttf` (safer compatibility).
 
-## What files are included?
-
-Each release includes two compatibility variants:
-
-- `twemoji-mosir.colr_1.*` → modern color font (COLRv1)
-- `twemoji-mosir.colr_0.*` → fallback for older engines (COLRv0)
-
-If you are unsure, use COLRv1 first and keep COLRv0 as fallback.
 
 ## Basic web usage
 
