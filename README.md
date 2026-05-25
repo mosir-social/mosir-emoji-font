@@ -1,132 +1,71 @@
-# twemoji-mosir
+# mosir-emoji-font
 
-A reusable **Twemoji-based color emoji font package** for the Mosir social platform.
+A simple **re-package of Twemoji** as ready-to-use emoji font files.
 
-This project wraps the upstream Twemoji SVG assets and builds distributable emoji fonts (COLRv1 + COLRv0), so other projects can reuse the same emoji rendering stack.
+> This project does **not** create a new emoji design.
+> We package upstream [Twemoji](https://github.com/jdecked/twemoji) into common font formats so it is easy to use in Mosir and other apps.
 
-## What this repository provides
+## Download fonts (recommended)
 
-- Twemoji source as a git submodule (`vendor/twemoji`)
-- Build pipeline to generate:
-  - `twemoji-mosir.colr_1` (modern COLRv1)
-  - `twemoji-mosir.colr_0` (legacy COLRv0)
-- Output formats:
-  - `.ttf`
-  - `.otf`
-  - `.woff2`
-- Filename normalization + compatibility duplication for better browser/platform support
+If you just want to use the fonts, download from Releases:
 
-## Why two color formats?
+👉 https://github.com/mosir-social/mosir-emoji-font/releases/latest
 
-- **COLRv1**: modern color font format (better gradients/features on modern engines)
-- **COLRv0**: fallback for older engines (including Safari/legacy stacks)
+From **Assets**, choose files based on your use case:
 
-Ship both and let CSS/browser selection pick the best available format.
+- **Web**: `.woff2`
+- **App/Desktop**: `.ttf` or `.otf`
 
-## Prerequisites
+## What files are included?
 
-- Python 3
-- [go-task](https://taskfile.dev/) (`task` command)
-- `ninja` (recommended by `nanoemoji`)
+Each release includes two compatibility variants:
 
-## Quick start
+- `twemoji-mosir.colr_1.*` → modern color font (COLRv1)
+- `twemoji-mosir.colr_0.*` → fallback for older engines (COLRv0)
 
-```bash
-# 1) Get Twemoji submodule
-task init
+If you are unsure, use COLRv1 first and keep COLRv0 as fallback.
 
-# 2) Create venv + install tooling
-task install
-
-# 3) Build all fonts
-task
-```
-
-Generated font files are placed in `fonts/`.
-
-## Download guide (GitHub)
-
-Just want the font files? Start here 👇
-
-### Quick download (no coding needed)
-
-1. Open the latest release:
-   https://github.com/mosir-social/mosir-emoji-font/releases/latest
-2. Under **Assets**, download the files you need.
-3. Add them to your project.
-
-Which file should you pick?
-
-- **Website** → use `.woff2`
-- **Desktop/app use** → use `.ttf` or `.otf`
-
-> Tip: Download from **Assets**. The "Source code (zip)" file is just the repository source, not the ready-to-use font package.
-
-### Want to build fonts yourself? (advanced)
-
-```bash
-git clone https://github.com/mosir-social/mosir-emoji-font.git
-cd mosir-emoji-font
-task init
-task install
-task
-```
-
-Built font files will be generated in `fonts/`.
-
-## Build tasks
-
-- `task init` – initialize Twemoji submodule (shallow)
-- `task install` – create `.venv` and install `nanoemoji`, `fonttools`, `brotli`
-- `task rename` – normalize SVG names (`-` -> `_`) and generate conservative compatibility duplicates
-- `task build-v1` – build COLRv1 TTF/OTF
-- `task build-v0` – build COLRv0 TTF/OTF
-- `task compress` – generate WOFF2 from built fonts
-- `task gen-range` – generate `fonts/unicode_range.css` from prepared SVGs
-- `task clean` – remove build artifacts
-
-## Reuse in web projects
-
-If you generate `fonts/unicode_range.css`, you can optionally apply it in your `@font-face`.
-
-Example:
+## Basic web usage
 
 ```css
 @font-face {
   font-family: "twemoji-mosir";
-  src: url("./fonts/twemoji-mosir.colr_1.woff2") format("woff2");
+  src: url("./twemoji-mosir.colr_1.woff2") format("woff2");
   font-display: swap;
-  /* Optional: paste content from fonts/unicode_range.css */
-  /* unicode-range: ...; */
 }
 
-.emoji-enabled {
+.emoji {
   font-family: "twemoji-mosir", "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
 }
 ```
 
-If you target older engines, also serve COLRv0 output as fallback.
+> Safari/WebKit note: there is a known bug where COLRv0 font painting can leak outside expected bounds.
+> If you see this issue, wrap emoji elements with `contain: paint`.
 
-Note: `unicode_range.css` intentionally excludes keycap base characters (`#`, `*`, `0-9`) to avoid overmatching normal text.
+```css
+.emoji {
+  contain: paint;
+}
+```
 
-## Repository structure
+## Attribution & license
 
-- `Taskfile.yml` – main build pipeline
-- `scripts/gen_range.py` – unicode-range generator
-- `vendor/twemoji/` – upstream Twemoji source (submodule)
-- `build/` – temporary build outputs (ignored)
-- `fonts/` – distributable font artifacts (committed)
-
-## Attribution & licensing
-
-This project repackages Twemoji artwork. Please keep proper attribution when redistributing.
+This repository repackages Twemoji artwork and metadata.
 
 - Twemoji graphics: **CC-BY 4.0**
 - Twemoji code: **MIT**
-- Upstream project: https://github.com/jdecked/twemoji
+- Upstream: https://github.com/jdecked/twemoji
 
-See upstream license files in `vendor/twemoji/LICENSE` and `vendor/twemoji/LICENSE-GRAPHICS` for full terms.
+Please keep proper Twemoji attribution when redistributing.
 
----
+## Build from source (maintainers)
 
-If you publish this package, include attribution to Twemoji in your package README and/or NOTICE file.
+Only needed if you want to regenerate fonts locally:
+
+```bash
+task init
+task install
+task
+```
+
+Generated files are placed in `fonts/`.
