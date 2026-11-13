@@ -54,12 +54,12 @@ Please keep proper Twemoji attribution when redistributing.
 
 ## Build from source (maintainers)
 
-Only needed if you want to regenerate fonts locally:
+Only needed if you want to regenerate fonts locally. Install [mise](https://mise.jdx.dev/) 2026.11.0 or newer first; `mise tasks` lists the available commands:
 
 ```bash
-task init
-task install
-task
+mise run init
+mise run install
+mise run
 ```
 
 Generated files are placed in `fonts/`.
