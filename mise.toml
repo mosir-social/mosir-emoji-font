@@ -1,0 +1,109 @@
+min_version = "2026.11.0"
+
+[settings]
+task.source_freshness_hash_contents = true
+
+[tasks.default]
+description = "Build both COLRv1 and COLRv0 fonts"
+depends = ["move-fonts"]
+
+[tasks.install]
+description = "Install nanoemoji and fonttools into a venv"
+run = [
+  "python3 -m venv .venv",
+  ".venv/bin/pip install --upgrade pip",
+  ".venv/bin/pip install nanoemoji fonttools brotli",
+  '''
+if ! command -v ninja >/dev/null 2>&1; then
+  echo "WARNING: 'ninja' not found. Install via 'brew install ninja' or 'apt install ninja-build'"
+fi
+''',
+]
+
+[tasks.init]
+description = "Fast initialize Twemoji submodule (shallow)"
+run = "git submodule update --init --recursive --depth 1"
+
+[tasks.rename]
+description = "Prepare SVGs (hyphens to underscores + conservative fallback duplication)"
+sources = ["vendor/twemoji/assets/svg/*.svg"]
+outputs = ["build/renamed_svgs/*.svg"]
+run = '''
+set -e
+if ! test -d vendor/twemoji/assets/svg; then
+  echo "SVG directory not found. Run 'mise run init' first." >&2
+  exit 1
+fi
+rm -rf build/renamed_svgs
+mkdir -p build/renamed_svgs
+cp vendor/twemoji/assets/svg/*.svg build/renamed_svgs/
+for file in build/renamed_svgs/*.svg; do
+  [ -e "$file" ] || continue
+  new_file=$(printf '%s\n' "$file" | tr '-' '_')
+  [ "$new_file" = "$file" ] || mv "$file" "$new_file"
+done
+for file in build/renamed_svgs/*_fe0f_200d_*.svg; do
+  [ -e "$file" ] || continue
+  new_file=$(printf '%s\n' "$file" | sed 's/_fe0f_200d_/_200d_/')
+  [ "$new_file" = "$file" ] || cp "$file" "$new_file"
+done
+for file in build/renamed_svgs/*_200d_*_fe0f.svg; do
+  [ -e "$file" ] || continue
+  cp "$file" "${file%_fe0f.svg}.svg"
+done
+'''
+
+[tasks.build-v1]
+description = "Build COLRv1 (Gradients/Modern)"
+depends = ["rename"]
+outputs = ["build/twemoji-mosir.colr_1.ttf", "build/twemoji-mosir.colr_1.otf"]
+run = [
+  ".venv/bin/nanoemoji --family twemoji-mosir --color_format glyf_colr_1 --output_file twemoji-mosir.colr_1.ttf build/renamed_svgs/*.svg",
+  ".venv/bin/nanoemoji --family twemoji-mosir --color_format cff2_colr_1 --output_file twemoji-mosir.colr_1.otf build/renamed_svgs/*.svg",
+]
+
+[tasks.build-v0]
+description = "Build COLRv0 (Safari/Legacy)"
+depends = ["build-v1"]
+outputs = ["build/twemoji-mosir.colr_0.ttf", "build/twemoji-mosir.colr_0.otf"]
+run = [
+  ".venv/bin/nanoemoji --family twemoji-mosir --color_format glyf_colr_0 --output_file twemoji-mosir.colr_0.ttf build/renamed_svgs/*.svg",
+  ".venv/bin/nanoemoji --family twemoji-mosir --color_format cff_colr_0 --output_file twemoji-mosir.colr_0.otf build/renamed_svgs/*.svg",
+]
+
+[tasks.compress]
+description = "Compress TTF fonts to WOFF2"
+depends = ["build-v0"]
+sources = ["build/twemoji-mosir.colr_1.ttf", "build/twemoji-mosir.colr_0.ttf"]
+outputs = ["build/twemoji-mosir.colr_1.woff2", "build/twemoji-mosir.colr_0.woff2"]
+run = [
+  ".venv/bin/fonttools ttLib.woff2 compress build/twemoji-mosir.colr_1.ttf",
+  ".venv/bin/fonttools ttLib.woff2 compress build/twemoji-mosir.colr_0.ttf",
+]
+
+[tasks.move-fonts]
+description = "Move built fonts into fonts/"
+depends = ["compress"]
+run = [
+  "mkdir -p fonts",
+  "mv -f build/twemoji-mosir.colr_1.ttf fonts/",
+  "mv -f build/twemoji-mosir.colr_1.otf fonts/",
+  "mv -f build/twemoji-mosir.colr_0.ttf fonts/",
+  "mv -f build/twemoji-mosir.colr_0.otf fonts/",
+  "mv -f build/twemoji-mosir.colr_1.woff2 fonts/",
+  "mv -f build/twemoji-mosir.colr_0.woff2 fonts/",
+]
+
+[tasks.package]
+description = "Package fonts/ into tar.gz and zip"
+depends = ["move-fonts", "gen-range"]
+run = "python3 scripts/package_release.py fonts release twemoji-mosir-fonts"
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "rm -rf build/"
+
+[tasks.gen-range]
+description = "Generate CSS unicode-range based on prepared SVGs"
+depends = ["rename"]
+run = ["mkdir -p fonts", "python3 scripts/gen_range.py build/renamed_svgs > fonts/unicode_range.css"]
